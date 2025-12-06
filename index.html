@@ -122,6 +122,7 @@
       return `${year}-${m}-${d}`;
     }
 
+    // ISO week number calculation (weeks start Monday, Thursday rule)
     function getWeekNumber(date) {
       const tempDate = new Date(date.getTime());
       tempDate.setHours(0,0,0,0);
@@ -148,20 +149,27 @@
         calendarEl.appendChild(weekdayCell);
       });
 
-      const firstDay = new Date(year, month, 1).getDay();
+      const firstDay = new Date(year, month, 1).getDay(); // 0=Sun ... 6=Sat
       const daysInMonth = new Date(year, month+1, 0).getDate();
 
       let dayCounter = 1;
       let started = false;
 
       while (dayCounter <= daysInMonth) {
-        const weekDate = new Date(year, month, dayCounter);
-        const weekNum = getWeekNumber(weekDate);
+        // Compute the Monday of the current week row (ISO week start)
+        // Use the first real day of this row (dayCounter) to derive week start,
+        // then back up to Monday even if it falls in the previous month.
+        const rowFirstDate = new Date(year, month, dayCounter);
+        const dayOfWeek = rowFirstDate.getDay(); // 0=Sun..6=Sat
+        const mondayOffset = (dayOfWeek + 6) % 7; // 0 if Monday, 6 if Sunday
+        const weekStartDate = new Date(rowFirstDate);
+        weekStartDate.setDate(rowFirstDate.getDate() - mondayOffset);
+
         const weekNumCell = document.createElement('div');
         weekNumCell.className = 'weeknum';
         const weekLink = document.createElement('a');
-        weekLink.textContent = weekNum;
-        weekLink.href = `${notionBase}${year}-W${weekNum}`;
+        weekLink.textContent = getWeekNumber(weekStartDate);
+        weekLink.href = `${notionBase}${weekStartDate.getFullYear()}-W${getWeekNumber(weekStartDate)}`;
         weekNumCell.appendChild(weekLink);
         calendarEl.appendChild(weekNumCell);
 
@@ -188,7 +196,7 @@
               dayCell.classList.add('today');
             }
 
-            // Add weekend styling
+            // Weekend styling: Sun (0) and Sat (6)
             if (dow === 0 || dow === 6) {
               dayCell.classList.add('weekend');
             }
