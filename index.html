@@ -10,14 +10,14 @@
     }
     .calendar {
       display: grid;
-      grid-template-columns: 60px repeat(7, 1fr); /* extra column for week numbers */
-      gap: 5px;
+      grid-template-columns: 20px repeat(7, 1fr); /* extra column for week numbers */
+      gap: 1px;
       max-width: 700px;
       margin: auto;
     }
     .day, .empty, .weekday, .weeknum {
       padding: 10px;
-      border: 1px solid #ccc;
+      border: 0px solid #ccc;
       border-radius: 4px;
       transition: background 0.2s, color 0.2s;
     }
@@ -42,7 +42,7 @@
     }
     .day a {
       text-decoration: none;
-      color: #333;
+      color: #f0efeb;
     }
     .day:hover {
       background: #0070f3;
