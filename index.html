@@ -16,18 +16,38 @@
       padding: 10px; border: 1px solid #ccc; border-radius: 4px;
       transition: background 0.2s, color 0.2s;
     }
-    .weekday { font-weight: bold; background: #d5d5d7; }
-    .weeknum { font-weight: bold; background: #f0efeb; text-align: center; }
-    .weeknum a { text-decoration: none; color: #2a5d69; }
-    .weeknum:hover { background: #2a5d69; }
-    .weeknum:hover a { color: white; }
-    .day a { text-decoration: none; color: #333; }
-    .day:hover { background: #97637c; color: white; }
-    .day:hover a { color: white; }
-    .day.today { background: #97637c; color: white; font-weight: bold; }
-    .day.today a { color: white; }
-    .day.weekend { background: #ebd8dc; font-weight: bold;}   /* weekends */
+
+    /* Base day styles */
+    .day a {
+      text-decoration: none;
+      color: #333;
+    }
+    
+    /* Weekday and weekend backgrounds */
     .day.weekday { background: #f0efeb; }   /* weekdays */
+    .day.weekend { background: #ebd8dc; }   /* weekends */
+    
+    /* Hover overrides */
+    .day.weekday:hover,
+    .day.weekend:hover {
+      background: #97637c;
+      color: white;
+    }
+    .day.weekday:hover a,
+    .day.weekend:hover a {
+      color: white;
+    }
+    
+    /* Today override */
+    .day.today {
+      background: #a793ac !important;  /* force override */
+      color: white !important;
+      font-weight: bold;
+    }
+    .day.today a {
+      color: white !important;
+    }
+    
     .month-header {
       font-size: 1.5em; margin: 20px 0; display: flex;
       justify-content: center; align-items: center; gap: 20px;
