@@ -16,7 +16,12 @@
       padding: 10px; border: 1px solid #ccc; border-radius: 4px;
       transition: background 0.2s, color 0.2s;
     }
-
+    /* Week number styles */
+    .weeknum { font-weight: bold; background: #fafafa; text-align: center; }
+    .weeknum a { text-decoration: none; color: #0070f3; }
+    .weeknum:hover { background: #0070f3; }
+    .weeknum:hover a { color: white; }
+    
     /* Base day styles */
     .day a {
       text-decoration: none;
@@ -32,15 +37,17 @@
     .day.weekend:hover {
       background: #97637c;
       color: white;
+      border: 2px solid #d79d31;
     }
     .day.weekday:hover a,
     .day.weekend:hover a {
       color: white;
+      font-weight: bold;
     }
     
     /* Today override */
     .day.today {
-      background: #a793ac !important;  /* force override */
+      background: #a793ac;  /* force override */
       color: white !important;
       font-weight: bold;
     }
