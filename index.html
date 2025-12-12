@@ -102,62 +102,63 @@
     const loadingEl = document.getElementById('loading');
     loadingEl.textContent = "Fetching Notion links… ⏳";
     calendarEl.innerHTML = '';
-
+  
     const year = date.getFullYear();
     const month = date.getMonth();
     const monthName = date.toLocaleString('default', { month: 'long' });
-
+  
     monthLink.textContent = `${monthName} ${year}`;
-
-    // --- Build all fetch promises ---
-    const promises = [];
-
+  
+    // --- Build all name strings ---
+    const nameStrings = [];
+  
     // Monthly link (YYYY-MM)
     const monthDateStr = `${year}-${String(month+1).padStart(2,'0')}`;
-    promises.push(getNotionPageLink(monthDateStr));
-
+    nameStrings.push(monthDateStr);
+  
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month+1, 0).getDate();
-
+  
     let dayCounter = 1;
     let started = false;
     let rowIndex = 0;
     const firstSundayOfGrid = new Date(year, month, 1 - firstDay);
-
-    const weekRequests = [];
-    const dayRequests = [];
-
+  
     while (dayCounter <= daysInMonth) {
       const sundayOfRow = new Date(firstSundayOfGrid);
       sundayOfRow.setDate(firstSundayOfGrid.getDate() + rowIndex * 7);
       const mondayOfRow = new Date(sundayOfRow);
       mondayOfRow.setDate(sundayOfRow.getDate() + 1);
-
+  
       const isoWeek = getWeekNumber(mondayOfRow);
-      weekRequests.push(getNotionPageLink(`${year}-W${isoWeek}`));
-
+      const weekString = `${year}-W${isoWeek}`;
+      nameStrings.push(weekString);
+  
       for (let dow = 0; dow < 7; dow++) {
         if (!started && dow < firstDay) {
           // empty cell
         } else if (dayCounter <= daysInMonth) {
           const dateStr = formatDate(year, month+1, dayCounter);
-          dayRequests.push(getNotionPageLink(dateStr));
+          nameStrings.push(dateStr);
           dayCounter++;
         }
       }
       rowIndex++;
     }
-
-    promises.push(...weekRequests, ...dayRequests);
-
+  
     // --- Run all fetches in parallel ---
-    const results = await Promise.all(promises);
-    let resultIndex = 0;
-
-    // Monthly
-    const monthUrl = results[resultIndex++];
+    const urls = await Promise.all(nameStrings.map(ns => getNotionPageLink(ns)));
+  
+    // Build dictionary
+    const results = {};
+    nameStrings.forEach((ns, i) => {
+      results[ns] = urls[i];
+    });
+  
+    // Monthly link
+    const monthUrl = results[monthDateStr];
     monthLink.href = monthUrl === "ERROR" ? "#" : monthUrl;
-
+  
     // Weekday headers
     const weekdays = ['Wk','Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     weekdays.forEach(day => {
@@ -166,31 +167,33 @@
       cell.textContent = day;
       calendarEl.appendChild(cell);
     });
-
+  
+    // Reset counters for grid build
     dayCounter = 1;
     started = false;
     rowIndex = 0;
-
+  
     while (dayCounter <= daysInMonth) {
       const sundayOfRow = new Date(firstSundayOfGrid);
       sundayOfRow.setDate(firstSundayOfGrid.getDate() + rowIndex * 7);
       const mondayOfRow = new Date(sundayOfRow);
       mondayOfRow.setDate(sundayOfRow.getDate() + 1);
-
+  
       const isoWeek = getWeekNumber(mondayOfRow);
-
+      const weekString = `${year}-W${isoWeek}`;
+  
       // Weekly cell
       const weekNumCell = document.createElement('div');
       weekNumCell.className = 'weeknum';
       const weekLink = document.createElement('a');
-      const weekUrl = results[resultIndex++];
+      const weekUrl = results[weekString];
       weekLink.textContent = weekUrl === "ERROR" ? `${isoWeek} ⚠️` : isoWeek;
       weekLink.href = weekUrl === "ERROR" ? "#" : weekUrl;
       weekLink.target = "_blank";
       weekLink.rel = "noopener noreferrer";
       weekNumCell.appendChild(weekLink);
       calendarEl.appendChild(weekNumCell);
-
+  
       for (let dow = 0; dow < 7; dow++) {
         if (!started && dow < firstDay) {
           const emptyCell = document.createElement('div');
@@ -201,26 +204,27 @@
           const dayCell = document.createElement('div');
           dayCell.className = 'day';
           const dayLink = document.createElement('a');
-          const dayUrl = results[resultIndex++];
+          const dateStr = formatDate(year, month+1, dayCounter);
+          const dayUrl = results[dateStr];
           dayLink.textContent = dayUrl === "ERROR" ? `${dayCounter} ⚠️` : dayCounter;
           dayLink.href = dayUrl === "ERROR" ? "#" : dayUrl;
           dayLink.target = "_blank";
           dayLink.rel = "noopener noreferrer";
           dayCell.appendChild(dayLink);
-
+  
           const today = new Date();
           if (dayCounter === today.getDate() &&
               month === today.getMonth() &&
               year === today.getFullYear()) {
             dayCell.classList.add('today');
           }
-
+  
           if (dow === 0 || dow === 6) {
             dayCell.classList.add('weekend');
           } else {
             dayCell.classList.add('weekday');
           }
-
+  
           calendarEl.appendChild(dayCell);
           dayCounter++;
         } else {
@@ -231,7 +235,7 @@
       }
       rowIndex++;
     }
-
+  
     loadingEl.textContent = "";
   }
 
