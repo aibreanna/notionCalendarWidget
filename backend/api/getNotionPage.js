@@ -23,19 +23,20 @@ export default async function handler(req, res) {
       // Found an existing page
       res.status(200).json({ url: response.results[0].url });
     } else {
-      // Create a new page if none exists
+      // Create a new page with naming convention: YYYY-MM-DD, YYYY-W##, or YYYY-MM
       const newPage = await notion.pages.create({
         parent: { database_id: databaseId },
         properties: {
-          Name: { title: [{ text: { content: `${type} ${date}` } }] },
+          Name: { title: [{ text: { content: date } }] }, // <-- only the date string
           Date: { date: { start: date } },
           "Journal Entry Type": { select: { name: type } }
         }
       });
+
       res.status(200).json({ url: newPage.url });
     }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Failed to fetch or create Notion page" });
+    res.status(500).json({ error: error.message });
   }
 }
