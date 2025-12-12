@@ -13,9 +13,10 @@
       return data.url || "#";
     } catch (err) {
       console.error(`Error fetching ${type} page for ${dateString}:`, err);
-      return "ERROR"; // special marker we’ll handle in render
+      return "ERROR"; // special marker we’ll handle later
     }
   }
+
 
   function formatDate(year, month, day) {
     const m = String(month).padStart(2, '0');
@@ -127,12 +128,11 @@ async function renderCalendar(date) {
     weekNumCell.className = 'weeknum';
     const weekLink = document.createElement('a');
     weekLink.textContent = isoWeek;
-    // Get the URL (with error handling already in getNotionPageLink)
-    const weekUrl = results[resultIndex++];  // or await getNotionPageLink(...) if not batching
     
+    const weekUrl = results[resultIndex++];
     if (weekUrl === "ERROR") {
       weekLink.href = "#";
-      weekLink.textContent = `${isoWeek} ⚠️`;  // show warning
+      weekLink.textContent = `${isoWeek} ⚠️`;
     } else {
       weekLink.href = weekUrl;
       weekLink.target = "_blank";
@@ -141,6 +141,7 @@ async function renderCalendar(date) {
     
     weekNumCell.appendChild(weekLink);
     calendarEl.appendChild(weekNumCell);
+    
 
     for (let dow = 0; dow < 7; dow++) {
       if (!started && dow < firstDay) {
@@ -149,11 +150,13 @@ async function renderCalendar(date) {
         calendarEl.appendChild(emptyCell);
       } else if (dayCounter <= daysInMonth) {
         started = true;
+
         // Daily cell
         const dayCell = document.createElement('div');
         dayCell.className = 'day';
         const dayLink = document.createElement('a');
         dayLink.textContent = dayCounter;
+        
         const dayUrl = results[resultIndex++];
         if (dayUrl === "ERROR") {
           dayLink.href = "#";
@@ -163,7 +166,7 @@ async function renderCalendar(date) {
           dayLink.target = "_blank";
           dayLink.rel = "noopener noreferrer";
         }
-
+        
         dayCell.appendChild(dayLink);
 
         const today = new Date();
