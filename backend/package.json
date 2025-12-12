@@ -1,1 +1,13 @@
-
+{
+  "name": "notion-calendar-backend",
+  "version": "1.0.0",
+  "main": "api/getNotionPage.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node api/getNotionPage.js"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.10"
+  }
+}
