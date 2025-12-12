@@ -72,6 +72,7 @@
       const response = await fetch(`${notionApiBase}?date=${dateString}&type=${type}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
+      console.log("API response for", type, dateString, data);
       return data.url || "#";
     } catch (err) {
       console.error(`Error fetching ${type} page for ${dateString}:`, err);
