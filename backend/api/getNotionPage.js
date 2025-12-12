@@ -18,11 +18,15 @@ export default async function handler(req, res) {
       }
     });
 
+    console.log("Query results raw:", JSON.stringify(response.results, null, 2));
+
     if (response.results.length > 0) {
-      console.log("Found existing page:", response.results[0].url);
-      res.status(200).json({ url: response.results[0].url });
+      const foundPage = response.results[0];
+      console.log("Found existing page object:", foundPage);
+      console.log("Returning URL:", foundPage.url);
+      res.status(200).json({ url: foundPage.url });
     } else {
-      console.log("No page found, creating new:", date, type);
+      console.log("No page found, creating new:", { date, type });
       const newPage = await notion.pages.create({
         parent: { database_id: databaseId },
         properties: {
@@ -32,7 +36,8 @@ export default async function handler(req, res) {
         }
       });
 
-      console.log("New page created:", newPage.url);
+      console.log("New page created object:", newPage);
+      console.log("Returning new page URL:", newPage.url);
       res.status(200).json({ url: newPage.url });
     }
   } catch (error) {
