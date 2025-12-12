@@ -6,9 +6,15 @@
   let currentDate = new Date();
 
   async function getNotionPageLink(dateString, type) {
-    const response = await fetch(`${notionApiBase}?date=${dateString}&type=${type}`);
-    const data = await response.json();
-    return data.url; // Notion page URL
+    try {
+      const response = await fetch(`${notionApiBase}?date=${dateString}&type=${type}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      return data.url || "#";
+    } catch (err) {
+      console.error(`Error fetching ${type} page for ${dateString}:`, err);
+      return "ERROR"; // special marker we’ll handle in render
+    }
   }
 
   function formatDate(year, month, day) {
@@ -85,9 +91,15 @@ async function renderCalendar(date) {
   let resultIndex = 0;
 
   // Monthly
-  monthLink.href = results[resultIndex++];
-  monthLink.target = "_blank";
-  monthLink.rel = "noopener noreferrer";
+  const monthUrl = results[resultIndex++];
+  if (monthUrl === "ERROR") {
+    monthLink.href = "#";
+    monthLink.textContent = `${monthName} ${year} ⚠️`;
+  } else {
+    monthLink.href = monthUrl;
+    monthLink.target = "_blank";
+    monthLink.rel = "noopener noreferrer";
+  }
 
   // Weekday headers
   const weekdays = ['Wk','Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -115,9 +127,18 @@ async function renderCalendar(date) {
     weekNumCell.className = 'weeknum';
     const weekLink = document.createElement('a');
     weekLink.textContent = isoWeek;
-    weekLink.href = results[resultIndex++];
-    weekLink.target = "_blank";
-    weekLink.rel = "noopener noreferrer";
+    // Get the URL (with error handling already in getNotionPageLink)
+    const weekUrl = results[resultIndex++];  // or await getNotionPageLink(...) if not batching
+    
+    if (weekUrl === "ERROR") {
+      weekLink.href = "#";
+      weekLink.textContent = `${isoWeek} ⚠️`;  // show warning
+    } else {
+      weekLink.href = weekUrl;
+      weekLink.target = "_blank";
+      weekLink.rel = "noopener noreferrer";
+    }
+    
     weekNumCell.appendChild(weekLink);
     calendarEl.appendChild(weekNumCell);
 
@@ -128,13 +149,21 @@ async function renderCalendar(date) {
         calendarEl.appendChild(emptyCell);
       } else if (dayCounter <= daysInMonth) {
         started = true;
+        // Daily cell
         const dayCell = document.createElement('div');
         dayCell.className = 'day';
         const dayLink = document.createElement('a');
         dayLink.textContent = dayCounter;
-        dayLink.href = results[resultIndex++];
-        dayLink.target = "_blank";
-        dayLink.rel = "noopener noreferrer";
+        const dayUrl = results[resultIndex++];
+        if (dayUrl === "ERROR") {
+          dayLink.href = "#";
+          dayLink.textContent = `${dayCounter} ⚠️`;
+        } else {
+          dayLink.href = dayUrl;
+          dayLink.target = "_blank";
+          dayLink.rel = "noopener noreferrer";
+        }
+
         dayCell.appendChild(dayLink);
 
         const today = new Date();
