@@ -5,11 +5,21 @@ const notion = new Client({ auth: process.env.NOTION_TOKEN });
 const databaseId = process.env.NOTION_DATABASE_ID;
 
 export default async function handler(req, res) {
+  // ✅ Allow requests from your GitHub Pages site
+  res.setHeader("Access-Control-Allow-Origin", "https://aibreanna.github.io");
+  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // Handle preflight OPTIONS request
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+
   try {
     const { date, type } = req.query;
     console.log("Incoming request:", { date, type });
 
-    // Query by Name property
     const response = await notion.databases.query({
       database_id: databaseId,
       filter: {
@@ -18,22 +28,15 @@ export default async function handler(req, res) {
       }
     });
 
-    console.log("Query results raw:", JSON.stringify(response.results, null, 2));
-
     if (response.results.length > 0) {
-      const foundPage = response.results[0];
-      console.log("Found existing page:", foundPage.url);
-      res.status(200).json({ url: foundPage.url });
+      res.status(200).json({ url: response.results[0].url });
     } else {
-      console.log("No page found, creating new:", { date, type });
-
-      // Build properties object
       const properties = {
         Name: { title: [{ text: { content: date } }] },
-        "Journal Entry Type": type ? { select: { name: type } } : undefined
+        ...(type && { "Journal Entry Type": { select: { name: type } } })
       };
 
-      // Only add Date if it's a valid ISO date string
+      // Only set Date if valid ISO string
       if (/^\d{4}-\d{2}-\d{2}$/.test(date) || /^\d{4}-\d{2}$/.test(date)) {
         properties.Date = { date: { start: date } };
       }
@@ -43,7 +46,6 @@ export default async function handler(req, res) {
         properties
       });
 
-      console.log("New page created:", newPage.url);
       res.status(200).json({ url: newPage.url });
     }
   } catch (error) {
