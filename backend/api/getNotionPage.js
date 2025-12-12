@@ -22,22 +22,28 @@ export default async function handler(req, res) {
 
     if (response.results.length > 0) {
       const foundPage = response.results[0];
-      console.log("Found existing page object:", foundPage);
-      console.log("Returning URL:", foundPage.url);
+      console.log("Found existing page:", foundPage.url);
       res.status(200).json({ url: foundPage.url });
     } else {
       console.log("No page found, creating new:", { date, type });
+
+      // Build properties object
+      const properties = {
+        Name: { title: [{ text: { content: date } }] },
+        "Journal Entry Type": type ? { select: { name: type } } : undefined
+      };
+
+      // Only add Date if it's a valid ISO date string
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date) || /^\d{4}-\d{2}$/.test(date)) {
+        properties.Date = { date: { start: date } };
+      }
+
       const newPage = await notion.pages.create({
         parent: { database_id: databaseId },
-        properties: {
-          Name: { title: [{ text: { content: date } }] },
-          Date: { date: { start: date } },
-          ...(type && { "Journal Entry Type": { select: { name: type } } })
-        }
+        properties
       });
 
-      console.log("New page created object:", newPage);
-      console.log("Returning new page URL:", newPage.url);
+      console.log("New page created:", newPage.url);
       res.status(200).json({ url: newPage.url });
     }
   } catch (error) {
