@@ -56,7 +56,3 @@ npm run test
 
 ## 📄 License
 MIT License — free to use, modify, and distribute.
-
----
-
-Would you like me to also add a **“Contributing” section** (for collaborators) and a **“Future Improvements” roadmap** to capture your long‑term goals like automation and scaling? That way the README doubles as a living project guide.
