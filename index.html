@@ -71,201 +71,144 @@
  </div> <div class="calendar" id="calendar"></div>
 
  <script>
-  const notionApiBase = "https://notion-calendar-widget-eight.vercel.app/api/getNotionPage";
-
+  const notionApiBase = 'https://notion-calendar-widget-eight.vercel.app/api/getNotionPage';
   const calendarEl = document.getElementById('calendar');
   const monthLink = document.getElementById('month-link');
+  const loadingEl = document.getElementById('loading');
+  const knownUrls = new Map();
+  const pendingLinks = new Set();
   let currentDate = new Date();
 
-  async function getNotionPageLink(nameString) {
-    try {
-      const response = await fetch(`${notionApiBase}?date=${nameString}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      console.log("API response for", nameString, data); // 🔎 Debug
-      if (data && data.url) {
-        return data.url;
-      } else {
-        return "ERROR"; // show ⚠️ instead of falling back to "#"
+  function bindJournalLink(link, name) {
+    link.href = knownUrls.get(name) || '#';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.setAttribute('aria-label', `Open journal entry ${name}`);
+    link.onclick = async function(event) {
+      event.preventDefault();
+      if (pendingLinks.has(name)) return;
+      // Open synchronously during the user's gesture, before the API request,
+      // so browsers do not block the tab as an unsolicited popup.
+      const popup = window.open('', '_blank');
+      if (popup) {
+        popup.opener = null;
+        popup.document.title = 'Opening journal…';
+        popup.document.body.textContent = `Opening journal entry ${name}…`;
       }
-    } catch (err) {
-      console.error(`Error fetching page for ${nameString}:`, err);
-      return "ERROR";
+      if (knownUrls.has(name)) {
+        showJournalUrl(knownUrls.get(name), popup);
+        return;
+      }
+      pendingLinks.add(name);
+      link.setAttribute('aria-busy', 'true');
+      loadingEl.textContent = `Opening ${name}… ⏳`;
+      try {
+        const response = await fetch(notionApiBase, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: name })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.url) throw new Error(data.error || 'Unable to open journal.');
+        // Reject unexpected redirects even if the endpoint returns a malformed URL.
+        const url = new URL(data.url);
+        if (url.protocol !== 'https:' || !/(^|\.)notion\.(so|com)$/.test(url.hostname))
+          throw new Error('The server returned an invalid journal link.');
+        knownUrls.set(name, url.href);
+        link.href = url.href;
+        showJournalUrl(url.href, popup);
+      } catch (error) {
+        if (popup && !popup.closed) popup.close();
+        loadingEl.textContent = `${error.message} Click the link again to retry.`;
+        console.error(`Journal request failed for ${name}:`, error);
+      } finally {
+        pendingLinks.delete(name);
+        link.removeAttribute('aria-busy');
+      }
+    };
+  }
+
+  function showJournalUrl(url, popup) {
+    if (popup && !popup.closed) {
+      popup.location.replace(url);
+      loadingEl.textContent = '';
+    } else {
+      // If the embed/browser blocks popups, offer a normal user-clickable link.
+      loadingEl.textContent = 'Journal ready — ';
+      const openLink = document.createElement('a');
+      openLink.href = url;
+      openLink.target = '_blank';
+      openLink.rel = 'noopener noreferrer';
+      openLink.textContent = 'open your entry';
+      loadingEl.appendChild(openLink);
     }
   }
 
   function formatDate(year, month, day) {
-    const m = String(month).padStart(2, '0');
-    const d = String(day).padStart(2, '0');
-    return `${year}-${m}-${d}`;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 
   function getISOWeekYearAndNumber(date) {
-    const tmp = new Date(date.valueOf());
-    // Set to nearest Thursday: current date + 4 - current day number
-    tmp.setDate(tmp.getDate() + 4 - (tmp.getDay() || 7));
-    const yearStart = new Date(tmp.getFullYear(), 0, 1);
-    const weekNumber = Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
-    const weekYear = tmp.getFullYear();
-    return { weekYear, weekNumber };
+    // UTC arithmetic avoids off-by-one week errors at daylight-saving changes.
+    const tmp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const weekYear = tmp.getUTCFullYear();
+    const yearStart = new Date(Date.UTC(weekYear, 0, 1));
+    return { weekYear, weekNumber: Math.ceil(((tmp - yearStart) / 86400000 + 1) / 7) };
   }
 
-  async function renderCalendar(date) {
-    const loadingEl = document.getElementById('loading');
-    loadingEl.textContent = "Fetching Notion links… ⏳";
+  function renderCalendar(date) {
+    // Rendering and navigation are entirely local: no fetches, no page creation.
     calendarEl.innerHTML = '';
-  
     const year = date.getFullYear();
     const month = date.getMonth();
-    const monthName = date.toLocaleString('default', { month: 'long' });
-  
-    monthLink.textContent = `${monthName} ${year}`;
-  
-    // --- Build all name strings ---
-    const nameStrings = [];
-  
-    // Monthly link (YYYY-MM)
-    const monthDateStr = `${year}-${String(month+1).padStart(2,'0')}`;
-    nameStrings.push(monthDateStr);
-  
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month+1, 0).getDate();
-  
-    let dayCounter = 1;
-    let started = false;
-    let rowIndex = 0;
-    const firstSundayOfGrid = new Date(year, month, 1 - firstDay);
-  
-    while (dayCounter <= daysInMonth) {
-      const sundayOfRow = new Date(firstSundayOfGrid);
-      sundayOfRow.setDate(firstSundayOfGrid.getDate() + rowIndex * 7);
-      const mondayOfRow = new Date(sundayOfRow);
-      mondayOfRow.setDate(sundayOfRow.getDate() + 1);
-  
-      const { weekYear, weekNumber } = getISOWeekYearAndNumber(mondayOfRow);
-      const weekString = `${weekYear}-W${weekNumber}`;
-      nameStrings.push(weekString);
-  
-      for (let dow = 0; dow < 7; dow++) {
-        if (!started && dow < firstDay) {
-          // empty cell
-        } else if (dayCounter <= daysInMonth) {
-          const dateStr = formatDate(year, month+1, dayCounter);
-          nameStrings.push(dateStr);
-          dayCounter++;
-        }
-      }
-      rowIndex++;
-    }
-  
-    // --- Run all fetches in parallel ---
-    const urls = await Promise.all(nameStrings.map(ns => getNotionPageLink(ns)));
-  
-    // Build dictionary
-    const results = {};
-    nameStrings.forEach((ns, i) => {
-      results[ns] = urls[i];
-    });
-  
-    // Monthly link
-    const monthUrl = results[monthDateStr];
-    monthLink.href = monthUrl === "ERROR" ? "#" : monthUrl;
-  
-    // Weekday headers
-    const weekdays = ['Wk','Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    weekdays.forEach(day => {
+    monthLink.textContent = `${date.toLocaleString('default', { month: 'long' })} ${year}`;
+    bindJournalLink(monthLink, `${year}-${String(month + 1).padStart(2, '0')}`);
+
+    ['Wk', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(label => {
       const cell = document.createElement('div');
       cell.className = 'weekday';
-      cell.textContent = day;
+      cell.textContent = label;
       calendarEl.appendChild(cell);
     });
-  
-    // Reset counters for grid build
-    dayCounter = 1;
-    started = false;
-    rowIndex = 0;
-  
-    while (dayCounter <= daysInMonth) {
-      const sundayOfRow = new Date(firstSundayOfGrid);
-      sundayOfRow.setDate(firstSundayOfGrid.getDate() + rowIndex * 7);
-      const mondayOfRow = new Date(sundayOfRow);
-      mondayOfRow.setDate(sundayOfRow.getDate() + 1); 
- 
-      // Weekly cell
-      const { weekYear, weekNumber } = getISOWeekYearAndNumber(mondayOfRow);
-      const weekString = `${weekYear}-W${weekNumber}`;
-      
-      const weekNumCell = document.createElement('div');
-      weekNumCell.className = 'weeknum';
-      
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const rowCount = Math.ceil((firstDay + daysInMonth) / 7);
+    const today = new Date();
+    for (let row = 0; row < rowCount; row++) {
+      const monday = new Date(year, month, 2 - firstDay + row * 7);
+      const { weekYear, weekNumber } = getISOWeekYearAndNumber(monday);
+      const weekCell = document.createElement('div');
+      weekCell.className = 'weeknum';
+      if (weekYear !== year) weekCell.classList.add('rollover');
       const weekLink = document.createElement('a');
-      const weekUrl = results[weekString];
-      
-      // Show week number, and optionally the year if it differs from the current year
-      weekLink.textContent = weekUrl === "ERROR"
-        ? `W${weekNumber} ⚠️`
-        : (weekYear !== year ? `W${weekNumber} (${weekYear})` : `W${weekNumber}`);
-      
-      weekLink.href = weekUrl === "ERROR" ? "#" : weekUrl;
-      weekLink.target = "_blank";
-      weekLink.rel = "noopener noreferrer";
-      
-      weekNumCell.appendChild(weekLink);
-      calendarEl.appendChild(weekNumCell);
-  
+      weekLink.textContent = weekYear === year ? `W${weekNumber}` : `W${weekNumber} (${weekYear})`;
+      bindJournalLink(weekLink, `${weekYear}-W${weekNumber}`);
+      weekCell.appendChild(weekLink);
+      calendarEl.appendChild(weekCell);
+
       for (let dow = 0; dow < 7; dow++) {
-        if (!started && dow < firstDay) {
-          const emptyCell = document.createElement('div');
-          emptyCell.className = 'empty';
-          calendarEl.appendChild(emptyCell);
-        } else if (dayCounter <= daysInMonth) {
-          started = true;
-          const dayCell = document.createElement('div');
-          dayCell.className = 'day';
-          const dayLink = document.createElement('a');
-          const dateStr = formatDate(year, month+1, dayCounter);
-          const dayUrl = results[dateStr];
-          dayLink.textContent = dayUrl === "ERROR" ? `${dayCounter} ⚠️` : dayCounter;
-          dayLink.href = dayUrl === "ERROR" ? "#" : dayUrl;
-          dayLink.target = "_blank";
-          dayLink.rel = "noopener noreferrer";
-          dayCell.appendChild(dayLink);
-  
-          const today = new Date();
-          if (dayCounter === today.getDate() &&
-              month === today.getMonth() &&
-              year === today.getFullYear()) {
-            dayCell.classList.add('today');
-          }
-  
-          if (dow === 0 || dow === 6) {
-            dayCell.classList.add('weekend');
-          } else {
-            dayCell.classList.add('weekday');
-          }
-
-          if (weekYear !== year) {
-            weekNumCell.classList.add('rollover');
-          }
-
-          calendarEl.appendChild(dayCell);
-          dayCounter++;
+        const day = row * 7 + dow - firstDay + 1;
+        const cell = document.createElement('div');
+        if (day < 1 || day > daysInMonth) {
+          cell.className = 'empty';
         } else {
-          const emptyCell = document.createElement('div');
-          emptyCell.className = 'empty';
-          calendarEl.appendChild(emptyCell);
+          cell.className = `day ${dow === 0 || dow === 6 ? 'weekend' : 'weekday'}`;
+          if (day === today.getDate() && month === today.getMonth() && year === today.getFullYear())
+            cell.classList.add('today');
+          const dayLink = document.createElement('a');
+          dayLink.textContent = day;
+          bindJournalLink(dayLink, formatDate(year, month + 1, day));
+          cell.appendChild(dayLink);
         }
+        calendarEl.appendChild(cell);
       }
-      rowIndex++;
     }
-  
-    loadingEl.textContent = "";
   }
 
-  function prevMonth() { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(currentDate); }
-  function nextMonth() { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(currentDate); }
+  function prevMonth() { currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1); renderCalendar(currentDate); }
+  function nextMonth() { currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1); renderCalendar(currentDate); }
   function goToday() { currentDate = new Date(); renderCalendar(currentDate); }
-
   renderCalendar(currentDate);
 </script>
 </body>
